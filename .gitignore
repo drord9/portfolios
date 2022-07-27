@@ -1,3 +1,5 @@
 /desktop.ini
 /.idea/
 /__pycache__/
+*.pkl
+/.ipynb_checkpoints/
