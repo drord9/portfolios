@@ -17,12 +17,12 @@ def get_data(start_date, end_train_date, end_test_date):
     try:
         # try to load the data from file
         print("loading data.pkl....")
-        data = pd.read_pickle('data.pkl')
+        data = pd.read_pickle('../data.pkl')
         if data.index[0] > pd.Timestamp(start_date) or data.index[-1] < pd.Timestamp(end_test_date) - pd.DateOffset(3):
             print(" data in data.pkl is stale !!! ")
             raise "GoTo except"
 
-        mc = pd.read_pickle('marketCap.pkl')
+        mc = pd.read_pickle('../marketCap.pkl')
     except:
         # download data and save to file, so we don't need to download it again
         print("Downloading ....")
@@ -30,10 +30,10 @@ def get_data(start_date, end_train_date, end_test_date):
         sp_tickers = wiki_table[0]
         tickers = [ticker.replace('.', '-') for ticker in sp_tickers['Symbol'].to_list()]
         data = yf.download(tickers, start_date, end_test_date, progress=True)
-        data.to_pickle('data.pkl')
+        data.to_pickle('../data.pkl')
 
         mc = pd_data.get_quote_yahoo(tickers)['marketCap']
-        mc.to_pickle('marketCap.pkl')
+        mc.to_pickle('../marketCap.pkl')
 
     return data, mc
 
