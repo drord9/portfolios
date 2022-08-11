@@ -43,6 +43,8 @@ def get_referancePortfolios(data: pd.DataFrame, marketCap: pd.DataFrame):
     #close = data['Adj Close'].fillna(method='ffill').dropna(axis=1, how="all")
     close = data['Adj Close'].fillna(method='ffill').dropna(axis=0, how="all").dropna(axis=1, how="any")
 
+    close = close.iloc[-250:]
+
     # Relative returns
     returns = close.pct_change(1)
     Rf = 0.0
@@ -77,8 +79,6 @@ def test_portfolio(start_date, end_train_date, end_test_date):
 
     ###
     train_dates = pd.date_range(start=start_date, end=end_train_date, freq='B')
-    #full_train = full_train.fillna(method='ffill').dropna(axis=1, how="all")
-    #full_train = full_train.fillna(method='ffill')
     train_data = full_train.reindex(train_dates)
     p_strategy = strategy.train(train_data)
 
@@ -120,8 +120,8 @@ def test_portfolio(start_date, end_train_date, end_test_date):
 
 
     fig = plt.figure()
-    ax = fig.add_subplot(2, 1, 1)
-    #ax.plot(100*returns['return'], label="return")
+    ax = fig.add_subplot(3, 1, 1)
+    ax.plot(100*returns['return'], label="return")
     ax.plot(100*returns['p_market_return'], label="p_market_return")
     ax.plot(100*returns['p_minVar_return'], label="p_minVar_return")
     ax.plot(100 * returns['p_maxShp_return'], label="p_maxShp_return")
@@ -131,8 +131,8 @@ def test_portfolio(start_date, end_train_date, end_test_date):
 
     log_returns = pd.DataFrame(log_returns).set_index('date')
 
-    ax = fig.add_subplot(2, 1, 2)
-    #ax.plot(100 * (np.exp(log_returns['return'].cumsum()) - 1), label="return")
+    ax = fig.add_subplot(3, 1, 2)
+    ax.plot(100 * (np.exp(log_returns['return'].cumsum()) - 1), label="return")
     ax.plot(100*(np.exp(log_returns['p_market_return'].cumsum()) - 1), label="p_market_return")
     ax.plot(100 * (np.exp(log_returns['p_minVar_return'].cumsum()) - 1), label="p_minVar_return")
     ax.plot(100 * (np.exp(log_returns['p_maxShp_return'].cumsum()) - 1), label="p_maxShp_return")
@@ -143,6 +143,13 @@ def test_portfolio(start_date, end_train_date, end_test_date):
     plt.suptitle('train dates:' + start_date + " - " + end_train_date)
     plt.tight_layout()
     plt.show()
+
+    fig = plt.figure()
+    plt.bar(sharpe.index, sharpe.to_numpy())
+    plt.suptitle('train dates:' + start_date + " - " + end_train_date)
+    plt.tight_layout()
+    plt.show()
+
 
 
 if __name__ == '__main__':
