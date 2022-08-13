@@ -53,13 +53,15 @@ def get_max_sharp_portfolio(train_data: pd.DataFrame, tau=0.0) -> pd.Series:
     def neg_sharpe(W):
         return -1 * calc_sharp(W) + tau*np.linalg.norm(W, 1)
 
+
+
     # check allocation sums to 1
     def check_sum(W):
         return np.sum(W) - 1
 
 
     # create constraint variable
-    cons = ({'type': 'eq', 'fun': check_sum})
+    cons = ({'type': 'eq', 'fun': check_sum}, {'type': 'ineq', 'fun': calc_sharp})
 
     # create weight boundaries
     #bounds = ((0, 1),) * n

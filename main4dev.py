@@ -68,8 +68,12 @@ def get_referancePortfolios(data: pd.DataFrame, marketCap: pd.DataFrame):
     return X_min_var.to_numpy(), X_max_shp.to_numpy(), X_market.to_numpy()
 
 
-def test_portfolio(start_date, end_train_date, end_test_date, tau=0.0):
-    full_train, marketCap = get_data(start_date, end_train_date, end_test_date)
+def test_portfolio(start_date, end_train_date, end_test_date, tau=0.0, data=None):
+
+    if data is None:
+        full_train, marketCap = get_data(start_date, end_train_date, end_test_date)
+    else:
+        full_train, marketCap = data
 
     returns = []
     log_returns = []
@@ -157,7 +161,7 @@ def main() -> pd.DataFrame:
     FROM_DATE_ = '2015-01-01'
     TO_DATE_ = '2022-07-30'
 
-    get_data(FROM_DATE_, 'NA', TO_DATE_)
+    all_data = get_data(FROM_DATE_, 'NA', TO_DATE_)
 
     #2021
     _START_DATE_ = ['2015-12-01', '2016-01-01', '2016-02-01', '2016-03-01', '2016-04-01', '2016-05-01', '2016-06-01', '2016-07-01', '2016-08-01', '2016-09-01', '2016-10-01', '2016-11-01']
@@ -170,7 +174,8 @@ def main() -> pd.DataFrame:
     _END_TRAIN_DATE_ = [*_END_TRAIN_DATE_, '2021-12-31', '2022-01-31', '2022-02-28', '2022-03-31', '2022-04-30', '2022-05-31', '2022-06-30']
     _END_TEST_DATE_ = [*_END_TEST_DATE_, '2022-01-31', '2022-02-28', '2022-03-31', '2022-04-30', '2022-05-31', '2022-06-30', '2022-07-30']
 
-    tau = [0.0, 0.05, 0.1, 0.25, 0.5, 1.0, 2.0, 5.0, 10.0 ]
+    #tau = [0.0, 0.05, 0.1, 0.25, 0.5, 1.0, 2.0, 5.0, 10.0 ]
+    tau = [0.0]
 
     results = dict.fromkeys([*tau, 'minVar', 'market'])
 
@@ -182,7 +187,7 @@ def main() -> pd.DataFrame:
 
         for i in range(len(_START_DATE_)):
 
-            shrp = test_portfolio(_START_DATE_[i], _END_TRAIN_DATE_[i], _END_TEST_DATE_[i], t)
+            shrp = test_portfolio(_START_DATE_[i], _END_TRAIN_DATE_[i], _END_TEST_DATE_[i], tau=t, data = all_data)
 
             results[t][i] = shrp['return']
             results['minVar'][i] = shrp['p_minVar_return']
