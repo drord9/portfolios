@@ -1,9 +1,8 @@
 import numpy as np
 import pandas as pd
-import cvxpy as cp
 
 
-def get_max_sharp_portfolio(train_data: pd.DataFrame) -> np.ndarray:
+def get_max_sharp_portfolio(train_data: pd.DataFrame, tau=0.0) -> pd.Series:
 
     close = train_data['Adj Close'].fillna(method='ffill').dropna(axis=0, how="all").dropna(axis=1, how="any")
 
@@ -25,10 +24,7 @@ def get_max_sharp_portfolio(train_data: pd.DataFrame) -> np.ndarray:
     e = np.ones(n)
 
     # Find the maximum sharp ratio portfolio
-    X = (C_inv @ R) / (e.T @ C_inv @ R)
-
-    # Find the minimum variance portfolio
-    # X = (C_inv @ e) / (e.T @ C_inv @ e)
+    #X = (C_inv @ R) / (e.T @ C_inv @ R)
 
     """
     w, v = np.linalg.eigh(C)
@@ -55,13 +51,13 @@ def get_max_sharp_portfolio(train_data: pd.DataFrame) -> np.ndarray:
         return sharp
 
     def neg_sharpe(W):
-        return -1 * calc_sharp(W)
+        return -1 * calc_sharp(W) + tau*np.linalg.norm(W, 1)
 
     # check allocation sums to 1
     def check_sum(W):
         return np.sum(W) - 1
 
-    """
+
     # create constraint variable
     cons = ({'type': 'eq', 'fun': check_sum})
 
@@ -77,7 +73,7 @@ def get_max_sharp_portfolio(train_data: pd.DataFrame) -> np.ndarray:
 
     X = opt_results.x
     X = pd.Series(data=X, index=R.index)
-    """
+
 
     # The portfolio we calculated is missing the simbols that has no history data (we used `dropna`)
     # so we restore them with zero weight
@@ -95,7 +91,7 @@ class Portfolio:
         """
         self.X = None
 
-    def train(self, train_data: pd.DataFrame):
+    def train(self, train_data: pd.DataFrame, tau=0.0):
         """
         :param: train_data: a dataframe as downloaded from yahoo finance, containing about
         5 years of history, with all the training data. The following day (the first that does not
@@ -103,7 +99,7 @@ class Portfolio:
         :return (optional): weights vector.
         """
 
-        self.X = get_max_sharp_portfolio(train_data)
+        self.X = get_max_sharp_portfolio(train_data, tau)
 
         return self.X.to_numpy()
 
