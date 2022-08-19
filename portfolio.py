@@ -1,5 +1,7 @@
 import numpy as np
 import pandas as pd
+from scipy.optimize import minimize
+from scipy.optimize import least_squares
 
 
 def get_max_sharp_portfolio(train_data: pd.DataFrame, tau=0.0) -> pd.Series:
@@ -70,7 +72,6 @@ def get_max_sharp_portfolio(train_data: pd.DataFrame, tau=0.0) -> pd.Series:
     # initial guess
     init_guess = [1/n] * n
 
-    from scipy.optimize import minimize
     opt_results = minimize(neg_sharpe, init_guess, method='SLSQP', bounds=bounds, constraints=cons)
 
     X = opt_results.x
@@ -82,6 +83,10 @@ def get_max_sharp_portfolio(train_data: pd.DataFrame, tau=0.0) -> pd.Series:
     #print("train: portfolio size = ", X.shape, "Data size = ", train_data['Adj Close'].shape)
 
     return pd.Series(data=X, index=train_data['Adj Close'].columns).fillna(0)
+
+
+
+
 
 
 class Portfolio:
@@ -101,9 +106,40 @@ class Portfolio:
         :return (optional): weights vector.
         """
 
-        self.X = get_max_sharp_portfolio(train_data, tau)
+        #self.X = get_max_sharp_portfolio(train_data, tau)
+        train_data_close = train_data['Adj Close']
+        X = np.ones(len(train_data_close.columns)) / len(train_data_close.columns)
+        self.X = pd.Series(data=X, index=train_data_close.columns)
 
         return self.X.to_numpy()
+
+    def calc_PAMR(self, data: pd.DataFrame, eps=0.01):
+        close = data['Adj Close'].fillna(method='ffill')
+
+        # Receive stock price relative (3)
+        R = close.iloc[-2:].pct_change(1).iloc[-1].fillna(0)
+        n = len(R)
+
+        # Calculate loss (4)
+        loss = np.maximum(0, self.X @ R - eps)
+
+        # Set PAMR parameter (5)
+        R_market = R.sum() / n
+        tau = loss / np.sum((R - R_market)**2)
+
+        # Update portfolio (6)
+        X_new = self.X - tau*(R - R_market)
+
+        # Normalize portfolio (7)
+        # create constraint LSE
+        def lse(x): return np.sum((x - X_new)**2)
+        cons = ({'type': 'eq', 'fun': (lambda x: x.sum()-1)})
+        bounds = [(0, 1)] * n
+
+        opt_results = minimize(lse, x0=self.X, bounds=bounds, constraints=cons)
+
+        X_new = opt_results.x
+        self.X = pd.Series(data=X_new, index=R.index)
 
 
     def get_portfolio(self, train_data: pd.DataFrame) -> np.ndarray:
@@ -115,6 +151,8 @@ class Portfolio:
         """
         #train_data = train_data['Adj Close']
         #return np.ones(len(train_data.columns)) / len(train_data.columns)
+
+        self.calc_PAMR(train_data)
 
         return self.X.to_numpy()
         #return get_max_sharp_portfolio(train_data).to_numpy()
