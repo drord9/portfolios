@@ -41,6 +41,7 @@ def get_data(start_date, end_train_date, end_test_date):
 def get_referancePortfolios(data: pd.DataFrame, marketCap: pd.DataFrame):
 
     #close = data['Adj Close'].fillna(method='ffill').dropna(axis=1, how="all")
+    all_data_columns = data['Adj Close'].columns
     close = data['Adj Close'].fillna(method='ffill').dropna(axis=0, how="all").dropna(axis=1, how="any")
 
     # Relative returns
@@ -55,17 +56,19 @@ def get_referancePortfolios(data: pd.DataFrame, marketCap: pd.DataFrame):
 
     # Find the minimum variance portfolio
     X_min_var = (C_inv @ e) / (e.T @ C_inv @ e)
-    X_min_var = pd.Series(data=X_min_var, index=data['Adj Close'].columns).fillna(0)
+    X_min_var = pd.Series(data=X_min_var, index=all_data_columns).fillna(0)
 
     # Find the maximum sharp ratio portfolio
     X_max_shp = (C_inv @ R) / (e.T @ C_inv @ R)
-    X_max_shp = pd.Series(data=X_max_shp, index=data['Adj Close'].columns).fillna(0)
+    X_max_shp = pd.Series(data=X_max_shp, index=all_data_columns).fillna(0)
 
     # Find the market portfolio
-    marketCap = marketCap.reindex(data['Adj Close'].columns)
-    X_market = marketCap.div(marketCap.sum())
+    #marketCap = marketCap.reindex(data['Adj Close'].columns)
+    #X_market = marketCap.div(marketCap.sum())
+    
+    X_market = np.ones(len(all_data_columns)) / len(all_data_columns)
 
-    return X_min_var.to_numpy(), X_max_shp.to_numpy(), X_market.to_numpy()
+    return X_min_var.to_numpy(), X_max_shp.to_numpy(), X_market
 
 
 def test_portfolio(start_date, end_train_date, end_test_date, tau=0.0, data=None):
@@ -174,10 +177,10 @@ def main() -> pd.DataFrame:
     _END_TRAIN_DATE_ = [*_END_TRAIN_DATE_, '2021-12-31', '2022-01-31', '2022-02-28', '2022-03-31', '2022-04-30', '2022-05-31', '2022-06-30']
     _END_TEST_DATE_ = [*_END_TEST_DATE_, '2022-01-31', '2022-02-28', '2022-03-31', '2022-04-30', '2022-05-31', '2022-06-30', '2022-07-30']
 
-    #tau = [0.0, 0.05, 0.1, 0.25, 0.5, 1.0, 2.0, 5.0, 10.0 ]
-    tau = [0.0]
+    tau = [i for i in np.arange(0,1.1,0.1)]
+    tau = [*tau, 1.5, 2.0]
 
-    results = dict.fromkeys([*tau, 'minVar', 'market'])
+    results = dict.fromkeys([*tau, 'minVar', 'market', 'maxShp'])
 
     for key, _ in results.items():
         results[key] = [0] * len(_START_DATE_)
@@ -192,6 +195,7 @@ def main() -> pd.DataFrame:
             results[t][i] = shrp['return']
             results['minVar'][i] = shrp['p_minVar_return']
             results['market'][i] = shrp['p_market_return']
+            results['maxShp'][i] = shrp['p_maxShp_return']
 
     df_results = pd.DataFrame(results)
     return df_results
@@ -200,9 +204,9 @@ def main() -> pd.DataFrame:
 if __name__ == '__main__':
 
     results = main()
-    results.to_pickle('../results.pkl')
-    plt.plot(results, label=results.columns)
-    plt.legend(loc="best")
-    plt.show()
+    results.to_pickle('../results_small_t.pkl')
+    #plt.plot(results, label=results.columns)
+    #plt.legend(loc="best")
+    #plt.show()
 
 
