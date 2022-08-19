@@ -60,9 +60,7 @@ def get_equal_risk_contribution(train_data: pd.DataFrame, tau=0.0) -> pd.Series:
     # so we restore them with zero weight
     #print("train: portfolio size = ", X.shape, "Data size = ", train_data['Adj Close'].shape)
 
-    return pd.Series(data=X, index=train_data['Adj Close'].columns).fillna(0)      
-        
-    
+    return pd.Series(data=X, index=train_data['Adj Close'].columns).fillna(0)
 
 
 def get_max_sharp_portfolio(train_data: pd.DataFrame, tau=0.0, isVarNormalize=False) -> pd.Series:
@@ -86,43 +84,42 @@ def get_max_sharp_portfolio(train_data: pd.DataFrame, tau=0.0, isVarNormalize=Fa
     C_inv = pd.DataFrame(np.linalg.inv(C.values), columns=C.columns, index=C.index)
     e = np.ones(n)
 
-    def calc_sharp(W):
-        ret = W.T @ R
-        std = np.sqrt(W.T @ C @ W)
-        sharp = ret / std
-        return sharp
+    if tau > 0.0:
 
-    def neg_sharpe(W):
-        return -1 * calc_sharp(W) + tau*np.linalg.norm(W, 1)
+        def calc_sharp(W):
+            ret = W.T @ R
+            std = np.sqrt(W.T @ C @ W)
+            sharp = ret / std
+            return sharp
 
-    # check allocation sums to 1
-    def check_sum(W):
-        return np.sum(W) - 1
+        def neg_sharpe(W): return -1 * calc_sharp(W) + tau*np.linalg.norm(W, 1)
+        def check_sum(W): return np.sum(W) - 1
 
+        # create constraint variable
+        #cons = ({'type': 'eq', 'fun': check_sum}, {'type': 'ineq', 'fun': calc_sharp})
+        cons = ({'type': 'eq', 'fun': check_sum})
 
-    # create constraint variable
-    #cons = ({'type': 'eq', 'fun': check_sum}, {'type': 'ineq', 'fun': calc_sharp})
-    cons = ({'type': 'eq', 'fun': check_sum})
+        # create weight boundaries
+        #bounds = ((0, 1),) * n
+        bounds = None
 
-    # create weight boundaries
-    #bounds = ((0, 1),) * n
-    bounds = None
+        # initial guess
+        init_guess = [1/n] * n
 
-    # initial guess
-    init_guess = [1/n] * n
-    
-    opt_results = minimize(neg_sharpe, init_guess, method='SLSQP', bounds=bounds, constraints=cons)
+        opt_results = minimize(neg_sharpe, init_guess, method='SLSQP', bounds=bounds, constraints=cons)
 
-    X = opt_results.x
-    
-    if isVarNormalize:
-         # Find the minimum variance portfolio
-        X_min_var = (C_inv @ e) / (e.T @ C_inv @ e)
-        X = np.multiply(X,X_min_var)
-        X = X / X.sum()
+        X = opt_results.x
+
+        if isVarNormalize:
+             # Find the minimum variance portfolio
+            X_min_var = (C_inv @ e) / (e.T @ C_inv @ e)
+            X = np.multiply(X,X_min_var)
+            X = X / X.sum()
+
+    else:
+        X = (C_inv @ R) / (e.T @ C_inv @ R)
     
     X = pd.Series(data=X, index=R.index)
-
 
     # The portfolio we calculated is missing the simbols that has no history data (we used `dropna`)
     # so we restore them with zero weight
@@ -148,25 +145,29 @@ def get_min_var_portfolio(train_data: pd.DataFrame, tau=0.0) -> pd.Series:
     C = returns.cov()
     C_inv = pd.DataFrame(np.linalg.inv(C.values), columns=C.columns, index=C.index)
     e = np.ones(n)
+	
 
-    X = cp.Variable(n)
+    if tau > 0.0 :
 
-    objective = cp.Minimize((1/2)*cp.quad_form(X, C) + tau*cp.norm(X, 1))
-    constraints = [cp.sum(X) == 1]
-    prob = cp.Problem(objective, constraints)
-    
-    result = prob.solve()
+        X = cp.Variable(n)
 
-    X = pd.Series(data=X.value, index=R.index)
+        objective = cp.Minimize((1/2)*cp.quad_form(X, C) + tau*cp.norm(X, 1))
+        constraints = [cp.sum(X) == 1]
+        prob = cp.Problem(objective, constraints)
+		
+        result = prob.solve()
+        X = X.value
+    else:
+        X = (C_inv @ e) / (e.T @ C_inv @ e)
+
+
+    X = pd.Series(data=X, index=R.index)
 
     # The portfolio we calculated is missing the simbols that has no history data (we used `dropna`)
     # so we restore them with zero weight
     #print("train: portfolio size = ", X.shape, "Data size = ", train_data['Adj Close'].shape)
 
     return pd.Series(data=X, index=train_data['Adj Close'].columns).fillna(0)
-
-
-
 
 
 
@@ -187,14 +188,15 @@ class Portfolio:
         :return (optional): weights vector.
         """
 
-        #self.X = get_min_var_portfolio(train_data, tau)
+        self.X = get_min_var_portfolio(train_data)
+        self.X = get_max_sharp_portfolio(train_data)
         #self.X = get_max_sharp_portfolio(train_data, tau)
         #self.X = get_max_sharp_portfolio(train_data, tau, True)
         #self.X = get_equal_risk_contribution(train_data, tau)
 		
-		train_data_close = train_data['Adj Close']
-        X = np.ones(len(train_data_close.columns)) / len(train_data_close.columns)
-        self.X = pd.Series(data=X, index=train_data_close.columns)		
+		#train_data_close = train_data['Adj Close']
+        #X = np.ones(len(train_data_close.columns)) / len(train_data_close.columns)
+        #self.X = pd.Series(data=X, index=train_data_close.columns)		
         
         self.X.to_pickle('../portfolio.pkl')
 
@@ -217,6 +219,7 @@ class Portfolio:
         # Update portfolio (6)
         X_new = self.X - tau*(R - R_market)
 
+        """
         # Normalize portfolio (7)
         # create constraint LSE
         def lse(x): return np.sum((x - X_new)**2)
@@ -224,8 +227,17 @@ class Portfolio:
         bounds = [(0, 1)] * n
 
         opt_results = minimize(lse, x0=self.X, bounds=bounds, constraints=cons)
-
         X_new = opt_results.x
+        """
+
+        X = cp.Variable(n)
+        objective = cp.Minimize(cp.sum_squares(X - X_new))
+        constraints = [cp.sum(X) == 1, X >= 0]
+        prob = cp.Problem(objective, constraints)
+
+        result = prob.solve()
+        X_new = X.value
+
         self.X = pd.Series(data=X_new, index=R.index)
 
 
