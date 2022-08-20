@@ -3,13 +3,8 @@ import yfinance as yf
 from portfolio import Portfolio
 import numpy as np
 import matplotlib.pyplot as plt
-
+from tqdm import tqdm
 import pandas_datareader.data as pd_data
-
-
-#START_DATE = '2017-08-01'
-#END_TRAIN_DATE = '2022-06-30'
-#END_TEST_DATE = '2022-07-26'
 
 
 def get_data(start_date, end_train_date, end_test_date):
@@ -71,7 +66,7 @@ def get_referancePortfolios(data: pd.DataFrame, marketCap: pd.DataFrame):
     return X_min_var.to_numpy(), X_max_shp.to_numpy(), X_market
 
 
-def test_portfolio(start_date, end_train_date, end_test_date, tau=0.0, data=None):
+def test_portfolio(start_date, end_train_date, end_test_date, tau=0.0, data=None, eps=1, c=500):
 
     if data is None:
         full_train, marketCap = get_data(start_date, end_train_date, end_test_date)
@@ -120,7 +115,7 @@ def test_portfolio(start_date, end_train_date, end_test_date, tau=0.0, data=None
     returns = pd.DataFrame(returns).set_index('date')
     mean_return, std_returns = returns.mean(), returns.std()
     sharpe = mean_return / std_returns
-    print(end_train_date)
+    #print(end_train_date)
     #print(sharpe)
 
     show_figs = False
@@ -156,7 +151,7 @@ def test_portfolio(start_date, end_train_date, end_test_date, tau=0.0, data=None
         plt.tight_layout()
         plt.show()
 
-    return sharpe
+    return sharpe, strategy.get_update()
 
 
 def main() -> pd.DataFrame:
@@ -177,25 +172,38 @@ def main() -> pd.DataFrame:
     _END_TRAIN_DATE_ = [*_END_TRAIN_DATE_, '2021-12-31', '2022-01-31', '2022-02-28', '2022-03-31', '2022-04-30', '2022-05-31', '2022-06-30']
     _END_TEST_DATE_ = [*_END_TEST_DATE_, '2022-01-31', '2022-02-28', '2022-03-31', '2022-04-30', '2022-05-31', '2022-06-30', '2022-07-30']
 
-    tau = [i for i in np.arange(0,1.1,0.1)]
-    tau = [*tau, 1.5, 2.0]
+    #tau = [i for i in np.arange(0,1.1,0.1)]
+    #tau = [*tau, 1.5, 2.0]
+    #tau = [0.0]
 
-    results = dict.fromkeys([*tau, 'minVar', 'market', 'maxShp'])
+    #eps = [i for i in np.arange(0, 0.2, 0.01)]
+    #eps = [i for i in np.arange(1, 1.2, 0.01)]
+    #eps = [0.5, 1]
+    
+    C = [i for i in np.arange(0, 100, 10)]
+
+    results = dict.fromkeys([*C, 'minVar', 'market', 'maxShp'])
 
     for key, _ in results.items():
         results[key] = [0] * len(_START_DATE_)
 
-    for t in tau:
-        print("tau = ", t)
+    for t in C:
+        print("C = ", t)
+        
+        update_list = {}
 
-        for i in range(len(_START_DATE_)):
+        for i in tqdm(range(len(_START_DATE_))):
 
-            shrp = test_portfolio(_START_DATE_[i], _END_TRAIN_DATE_[i], _END_TEST_DATE_[i], tau=t, data = all_data)
+            shrp, updates = test_portfolio(_START_DATE_[i], _END_TRAIN_DATE_[i], _END_TEST_DATE_[i], eps=1, c=t, data=all_data)
 
             results[t][i] = shrp['return']
             results['minVar'][i] = shrp['p_minVar_return']
             results['market'][i] = shrp['p_market_return']
             results['maxShp'][i] = shrp['p_maxShp_return']
+            
+            #update_list[i] = updates
+            
+        #print(update_list)
 
     df_results = pd.DataFrame(results)
     return df_results
@@ -204,7 +212,7 @@ def main() -> pd.DataFrame:
 if __name__ == '__main__':
 
     results = main()
-    results.to_pickle('../results_small_t.pkl')
+    results.to_pickle('../results_pamr_eps_test.pkl')
     #plt.plot(results, label=results.columns)
     #plt.legend(loc="best")
     #plt.show()

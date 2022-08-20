@@ -145,7 +145,6 @@ def get_min_var_portfolio(train_data: pd.DataFrame, tau=0.0) -> pd.Series:
     C = returns.cov()
     C_inv = pd.DataFrame(np.linalg.inv(C.values), columns=C.columns, index=C.index)
     e = np.ones(n)
-	
 
     if tau > 0.0 :
 
@@ -154,7 +153,7 @@ def get_min_var_portfolio(train_data: pd.DataFrame, tau=0.0) -> pd.Series:
         objective = cp.Minimize((1/2)*cp.quad_form(X, C) + tau*cp.norm(X, 1))
         constraints = [cp.sum(X) == 1]
         prob = cp.Problem(objective, constraints)
-		
+        
         result = prob.solve()
         X = X.value
     else:
@@ -173,12 +172,17 @@ def get_min_var_portfolio(train_data: pd.DataFrame, tau=0.0) -> pd.Series:
 
 class Portfolio:
 
-    def __init__(self):
+    def __init__(self, eps=1, c=0):
         """
         The class should load the model weights, and prepare anything needed for the testing of the model.
         The training of the model should be done before submission, here it should only be loaded
         """
         self.X = None
+        self.eps = eps
+        self.c = c
+
+        self.updates=0
+        self.periods=0
 
     def train(self, train_data: pd.DataFrame, tau=0.0):
         """
@@ -188,33 +192,39 @@ class Portfolio:
         :return (optional): weights vector.
         """
 
-        self.X = get_min_var_portfolio(train_data)
-        self.X = get_max_sharp_portfolio(train_data)
+        #self.X = get_min_var_portfolio(train_data)
+        #self.X = get_max_sharp_portfolio(train_data)
         #self.X = get_max_sharp_portfolio(train_data, tau)
         #self.X = get_max_sharp_portfolio(train_data, tau, True)
         #self.X = get_equal_risk_contribution(train_data, tau)
-		
-		#train_data_close = train_data['Adj Close']
-        #X = np.ones(len(train_data_close.columns)) / len(train_data_close.columns)
-        #self.X = pd.Series(data=X, index=train_data_close.columns)		
+        
+        train_data_close = train_data['Adj Close']
+        X = np.ones(len(train_data_close.columns)) / len(train_data_close.columns)
+        self.X = pd.Series(data=X, index=train_data_close.columns)
         
         self.X.to_pickle('../portfolio.pkl')
 
         return self.X.to_numpy()
 
-    def calc_PAMR(self, data: pd.DataFrame, eps=0.01):
+    def calc_PAMR(self, data: pd.DataFrame):
         close = data['Adj Close'].fillna(method='ffill')
 
         # Receive stock price relative (3)
-        R = close.iloc[-2:].pct_change(1).iloc[-1].fillna(0)
+        R = close.iloc[-2:].pct_change(1).iloc[-1].fillna(0) + 1
+        R_market = R.mean()
         n = len(R)
 
         # Calculate loss (4)
-        loss = np.maximum(0, self.X @ R - eps)
+        loss = np.maximum(0, self.X @ R - self.eps)
 
         # Set PAMR parameter (5)
-        R_market = R.sum() / n
-        tau = loss / np.sum((R - R_market)**2)
+        if self.c > 0:
+            tau = loss / (np.sum((R - R_market)**2) + 0.5/self.c)
+        else:                
+            tau = loss / (np.sum((R - R_market)**2))
+        
+        # limit lambda to avoid numerical problems
+        tau = min(100000, tau)
 
         # Update portfolio (6)
         X_new = self.X - tau*(R - R_market)
@@ -233,10 +243,15 @@ class Portfolio:
         X = cp.Variable(n)
         objective = cp.Minimize(cp.sum_squares(X - X_new))
         constraints = [cp.sum(X) == 1, X >= 0]
+        #constraints = [cp.sum(X) == 1]
         prob = cp.Problem(objective, constraints)
 
         result = prob.solve()
         X_new = X.value
+
+        if loss > 0:
+            self.updates = self.updates + 1
+        self.periods = self.periods + 1
 
         self.X = pd.Series(data=X_new, index=R.index)
 
@@ -255,4 +270,8 @@ class Portfolio:
 
         return self.X.to_numpy()
         #return get_max_sharp_portfolio(train_data).to_numpy()
+
+    
+    def get_update(self):
+        return (self.updates, self.periods)
 
