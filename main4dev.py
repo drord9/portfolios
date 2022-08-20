@@ -66,7 +66,7 @@ def get_referancePortfolios(data: pd.DataFrame, marketCap: pd.DataFrame):
     return X_min_var.to_numpy(), X_max_shp.to_numpy(), X_market
 
 
-def test_portfolio(start_date, end_train_date, end_test_date, tau=0.0, data=None, eps=1, c=500):
+def test_portfolio(start_date, end_train_date, end_test_date, data=None, method=None):
 
     if data is None:
         full_train, marketCap = get_data(start_date, end_train_date, end_test_date)
@@ -80,7 +80,7 @@ def test_portfolio(start_date, end_train_date, end_test_date, tau=0.0, data=None
     ###
     train_dates = pd.date_range(start=start_date, end=end_train_date, freq='B')
     train_data = full_train.reindex(train_dates)
-    p_strategy = strategy.train(train_data, tau)
+    p_strategy = strategy.train(train_data, method)
 
     p_minVar, p_maxShp, p_market = get_referancePortfolios(train_data, marketCap)
     ###
@@ -180,21 +180,22 @@ def main() -> pd.DataFrame:
     #eps = [i for i in np.arange(1, 1.2, 0.01)]
     #eps = [0.5, 1]
     
-    C = [i for i in np.arange(0, 100, 10)]
+    #C = [i for i in np.arange(0, 100, 10)]
+    method = ['train_minVar_all', 'train_minVar_100','train_maxShp_all', 'train_maxShp_100', 'train_equal_risk', 'train_equal_risk_100', 'train_equal']
 
-    results = dict.fromkeys([*C, 'minVar', 'market', 'maxShp'])
+    results = dict.fromkeys([*method, 'minVar', 'market', 'maxShp'])
 
     for key, _ in results.items():
         results[key] = [0] * len(_START_DATE_)
 
-    for t in C:
-        print("C = ", t)
+    for t in method:
+        print("method = ", t)
         
         update_list = {}
 
         for i in tqdm(range(len(_START_DATE_))):
 
-            shrp, updates = test_portfolio(_START_DATE_[i], _END_TRAIN_DATE_[i], _END_TEST_DATE_[i], eps=1, c=t, data=all_data)
+            shrp, updates = test_portfolio(_START_DATE_[i], _END_TRAIN_DATE_[i], _END_TEST_DATE_[i], data=all_data, method=t)
 
             results[t][i] = shrp['return']
             results['minVar'][i] = shrp['p_minVar_return']

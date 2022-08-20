@@ -6,7 +6,7 @@ from scipy.optimize import least_squares
 
 def get_equal_risk_contribution(train_data: pd.DataFrame, tau=0.0) -> pd.Series:
     
-    print("start get_equal_risk_contribution. tau=",tau)
+    #print("start get_equal_risk_contribution. tau=",tau)
     
     close = train_data['Adj Close'].fillna(method='ffill').dropna(axis=0, how="all").dropna(axis=1, how="any")
 
@@ -51,7 +51,7 @@ def get_equal_risk_contribution(train_data: pd.DataFrame, tau=0.0) -> pd.Series:
     
     X = opt_results.x
     
-    print("optimal result: ", target(X))
+    #print("optimal result: ", target(X))
     
     X = pd.Series(data=X, index=R.index)
 
@@ -184,23 +184,34 @@ class Portfolio:
         self.updates=0
         self.periods=0
 
-    def train(self, train_data: pd.DataFrame, tau=0.0):
+    def train(self, train_data: pd.DataFrame, method=None):
         """
         :param: train_data: a dataframe as downloaded from yahoo finance, containing about
         5 years of history, with all the training data. The following day (the first that does not
         appear in the index) is the test day.
         :return (optional): weights vector.
         """
-
-        #self.X = get_min_var_portfolio(train_data)
-        #self.X = get_max_sharp_portfolio(train_data)
-        #self.X = get_max_sharp_portfolio(train_data, tau)
-        #self.X = get_max_sharp_portfolio(train_data, tau, True)
-        #self.X = get_equal_risk_contribution(train_data, tau)
         
-        train_data_close = train_data['Adj Close']
-        X = np.ones(len(train_data_close.columns)) / len(train_data_close.columns)
-        self.X = pd.Series(data=X, index=train_data_close.columns)
+        # method = ['train_minVar_all', 'train_minVar_100','train_maxShp_all', 'train_maxShp_100', 'train_equal']
+        
+        if (method is None) or (method == 'train_equal'):
+            train_data_close = train_data['Adj Close']
+            X = np.ones(len(train_data_close.columns)) / len(train_data_close.columns)
+            self.X = pd.Series(data=X, index=train_data_close.columns)
+        elif method == 'train_minVar_all':
+            self.X = get_min_var_portfolio(train_data)
+        elif method == 'train_minVar_100':
+            self.X = get_min_var_portfolio(train_data.iloc[-100:])
+        elif method == 'train_maxShp_all':
+            self.X = get_max_sharp_portfolio(train_data)
+        elif method == 'train_maxShp_100':
+            self.X = get_max_sharp_portfolio(train_data.iloc[-100:])
+        elif method == 'train_equal_risk':
+            self.X = get_equal_risk_contribution(train_data)
+        elif method == 'train_equal_risk_100':
+            self.X = get_equal_risk_contribution(train_data.iloc[-100:])
+        else:
+            raise "Not implemanted !!!"
         
         self.X.to_pickle('../portfolio.pkl')
 
