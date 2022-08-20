@@ -66,7 +66,7 @@ def get_referancePortfolios(data: pd.DataFrame, marketCap: pd.DataFrame):
     return X_min_var.to_numpy(), X_max_shp.to_numpy(), X_market
 
 
-def test_portfolio(start_date, end_train_date, end_test_date, data=None, method=None):
+def test_portfolio(start_date, end_train_date, end_test_date, data=None, method=None, history=None):
 
     if data is None:
         full_train, marketCap = get_data(start_date, end_train_date, end_test_date)
@@ -80,7 +80,7 @@ def test_portfolio(start_date, end_train_date, end_test_date, data=None, method=
     ###
     train_dates = pd.date_range(start=start_date, end=end_train_date, freq='B')
     train_data = full_train.reindex(train_dates)
-    p_strategy = strategy.train(train_data, method)
+    p_strategy = strategy.train(train_data, method, history)
 
     p_minVar, p_maxShp, p_market = get_referancePortfolios(train_data, marketCap)
     ###
@@ -151,7 +151,7 @@ def test_portfolio(start_date, end_train_date, end_test_date, data=None, method=
         plt.tight_layout()
         plt.show()
 
-    return sharpe, strategy.get_update()
+    return sharpe
 
 
 def main() -> pd.DataFrame:
@@ -176,44 +176,35 @@ def main() -> pd.DataFrame:
     #tau = [*tau, 1.5, 2.0]
     #tau = [0.0]
 
-    #eps = [i for i in np.arange(0, 0.2, 0.01)]
-    #eps = [i for i in np.arange(1, 1.2, 0.01)]
-    #eps = [0.5, 1]
-    
-    #C = [i for i in np.arange(0, 100, 10)]
-    method = ['train_minVar_all', 'train_minVar_100','train_maxShp_all', 'train_maxShp_100', 'train_equal_risk', 'train_equal_risk_100', 'train_equal']
+    method = [('train_minVar', None), ('train_minVar', 100) , ('train_minVar', 300), ('train_minVar', 500),
+              ('train_maxShp', None), ('train_maxShp', 100) , ('train_maxShp', 300), ('train_maxShp', 500),
+              ('train_equal', None)]
 
     results = dict.fromkeys([*method, 'minVar', 'market', 'maxShp'])
 
     for key, _ in results.items():
         results[key] = [0] * len(_START_DATE_)
 
-    for t in method:
-        print("method = ", t)
-        
-        update_list = {}
+    for m in method:
+        t, hist = m
+        print("method = ", m)
 
         for i in tqdm(range(len(_START_DATE_))):
 
-            shrp, updates = test_portfolio(_START_DATE_[i], _END_TRAIN_DATE_[i], _END_TEST_DATE_[i], data=all_data, method=t)
+            shrp = test_portfolio(_START_DATE_[i], _END_TRAIN_DATE_[i], _END_TEST_DATE_[i], data=all_data, method=t, history=hist)
 
-            results[t][i] = shrp['return']
+            results[m][i] = shrp['return']
             results['minVar'][i] = shrp['p_minVar_return']
             results['market'][i] = shrp['p_market_return']
             results['maxShp'][i] = shrp['p_maxShp_return']
-            
-            #update_list[i] = updates
-            
-        #print(update_list)
 
     df_results = pd.DataFrame(results)
     return df_results
 
-
 if __name__ == '__main__':
 
     results = main()
-    results.to_pickle('../results_pamr_eps_test.pkl')
+    results.to_pickle('../results_pamr.pkl')
     #plt.plot(results, label=results.columns)
     #plt.legend(loc="best")
     #plt.show()
