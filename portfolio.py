@@ -92,14 +92,14 @@ class Portfolio:
     def train(self, train_data: pd.DataFrame, history=300, method='train_maxShp', tau=0.0):
         """
         train_data: A dataframe as downloaded from yahoo finance, containing about 5 years of history.
-        history: The number of history periods that will be used for training.
+        history: The number of history periods that will be used for training (None - use all history)
         method: The training method: 'train_minVar', 'train_maxShp', 'train_equal'
         tau: The weight of the regularization term
         
         :return (optional): weights vector.
         """
 
-        if history < train_data.shape[0]:
+        if history is not None and history < train_data.shape[0]:
             train_data = train_data.iloc[-history:]
         
         if method == 'train_equal':

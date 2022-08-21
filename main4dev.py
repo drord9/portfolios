@@ -66,12 +66,14 @@ def get_referancePortfolios(data: pd.DataFrame, marketCap: pd.DataFrame):
     return X_min_var.to_numpy(), X_max_shp.to_numpy(), X_market
 
 
-def test_portfolio(start_date, end_train_date, end_test_date, data=None, method=None, history=None):
+def test_portfolio(start_date, end_train_date, end_test_date, data=None, params=(None,None,0)):
 
     if data is None:
         full_train, marketCap = get_data(start_date, end_train_date, end_test_date)
     else:
         full_train, marketCap = data
+    
+    method, history, tau = params
 
     returns = []
     log_returns = []
@@ -80,7 +82,7 @@ def test_portfolio(start_date, end_train_date, end_test_date, data=None, method=
     ###
     train_dates = pd.date_range(start=start_date, end=end_train_date, freq='B')
     train_data = full_train.reindex(train_dates)
-    p_strategy = strategy.train(train_data, method, history)
+    p_strategy = strategy.train(train_data, method=method, history=history, tau=tau)
 
     p_minVar, p_maxShp, p_market = get_referancePortfolios(train_data, marketCap)
     ###
@@ -166,34 +168,23 @@ def main() -> pd.DataFrame:
     _END_TRAIN_DATE_ = ['2020-12-31', '2021-01-31', '2021-02-28', '2021-03-31', '2021-04-30', '2021-05-31', '2021-06-30', '2021-07-31', '2021-08-31', '2021-09-30', '2021-10-31', '2021-11-30']
     _END_TEST_DATE_ = ['2021-01-31', '2021-02-28', '2021-03-31', '2021-04-30', '2021-05-31', '2021-06-30', '2021-07-31', '2021-08-31', '2021-09-30', '2021-10-31', '2021-11-30', '2021-12-31']
 
-
-    #2022
-    _START_DATE_ = [*_START_DATE_, '2016-12-01', '2017-01-01', '2017-02-01', '2017-03-01', '2017-04-01', '2017-05-01', '2017-06-01']
-    _END_TRAIN_DATE_ = [*_END_TRAIN_DATE_, '2021-12-31', '2022-01-31', '2022-02-28', '2022-03-31', '2022-04-30', '2022-05-31', '2022-06-30']
-    _END_TEST_DATE_ = [*_END_TEST_DATE_, '2022-01-31', '2022-02-28', '2022-03-31', '2022-04-30', '2022-05-31', '2022-06-30', '2022-07-30']
-
-    #tau = [i for i in np.arange(0,1.1,0.1)]
-    #tau = [*tau, 1.5, 2.0]
-    #tau = [0.0]
-
-    method = [('train_minVar', None), ('train_minVar', 100) , ('train_minVar', 300), ('train_minVar', 500),
-              ('train_maxShp', None), ('train_maxShp', 100) , ('train_maxShp', 300), ('train_maxShp', 500),
+    params = [('train_minVar', None, 0), ('train_minVar', 300, 0), ('train_minVar', 300, 0.1),
+              ('train_maxShp', None, 0), ('train_maxShp', 300, 0) , ('train_maxShp', 300, 0.1),
               ('train_equal', None)]
 
-    results = dict.fromkeys([*method, 'minVar', 'market', 'maxShp'])
+    results = dict.fromkeys([*params, 'minVar', 'market', 'maxShp'])
 
     for key, _ in results.items():
         results[key] = [0] * len(_START_DATE_)
 
-    for m in method:
-        t, hist = m
-        print("method = ", m)
+    for p in params:
+        print("params = ", p)
 
         for i in tqdm(range(len(_START_DATE_))):
 
-            shrp = test_portfolio(_START_DATE_[i], _END_TRAIN_DATE_[i], _END_TEST_DATE_[i], data=all_data, method=t, history=hist)
+            shrp = test_portfolio(_START_DATE_[i], _END_TRAIN_DATE_[i], _END_TEST_DATE_[i], data=all_data, params=p)
 
-            results[m][i] = shrp['return']
+            results[p][i] = shrp['return']
             results['minVar'][i] = shrp['p_minVar_return']
             results['market'][i] = shrp['p_market_return']
             results['maxShp'][i] = shrp['p_maxShp_return']
@@ -204,9 +195,7 @@ def main() -> pd.DataFrame:
 if __name__ == '__main__':
 
     results = main()
-    results.to_pickle('../results_pamr.pkl')
+    #results.to_pickle('../results.pkl')
     #plt.plot(results, label=results.columns)
     #plt.legend(loc="best")
     #plt.show()
-
-
