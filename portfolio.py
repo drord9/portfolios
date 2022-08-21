@@ -79,38 +79,41 @@ class Portfolio:
         The class should load the model weights, and prepare anything needed for the testing of the model.
         The training of the model should be done before submission, here it should only be loaded
         """
-        self.X = None
+        
+        try:
+            self.X = pd.read_pickle('portfolio.pkl')
+        except:
+            self.X = None
+            print("Can't open the weights file")
+        
         self.eps = eps
         self.c = c
 
-        self.updates = 0
-        self.periods = 0
-
-    def train(self, train_data: pd.DataFrame, method=None, history=None):
+    def train(self, train_data: pd.DataFrame, history=300, method='train_maxShp', tau=0.0):
         """
-        :param: train_data: a dataframe as downloaded from yahoo finance, containing about
-        5 years of history, with all the training data. The following day (the first that does not
-        appear in the index) is the test day.
+        train_data: A dataframe as downloaded from yahoo finance, containing about 5 years of history.
+        history: The number of history periods that will be used for training.
+        method: The training method: 'train_minVar', 'train_maxShp', 'train_equal'
+        tau: The weight of the regularization term
+        
         :return (optional): weights vector.
         """
-        
-        # method : 'train_minVar', 'train_maxShp', 'train_equal'
 
-        if history is not None and history < train_data.shape[0]:
+        if history < train_data.shape[0]:
             train_data = train_data.iloc[-history:]
         
-        if (method is None) or (method == 'train_equal'):
+        if method == 'train_equal':
             train_data_close = train_data['Adj Close']
             X = np.ones(len(train_data_close.columns)) / len(train_data_close.columns)
             self.X = pd.Series(data=X, index=train_data_close.columns)
         elif method == 'train_minVar':
-            self.X = get_min_var_portfolio(train_data)
+            self.X = get_min_var_portfolio(train_data, tau=tau)
         elif method == 'train_maxShp':
-            self.X = get_max_sharp_portfolio(train_data)
+            self.X = get_max_sharp_portfolio(train_data, tau=tau)
         else:
             raise "Not implemanted !!!"
         
-        self.X.to_pickle('../portfolio.pkl')
+        self.X.to_pickle('portfolio.pkl')
         return self.X.to_numpy()
 
     def calc_PAMR(self, data: pd.DataFrame):
@@ -139,7 +142,6 @@ class Portfolio:
         X = cp.Variable(n)
         objective = cp.Minimize(cp.sum_squares(X - X_new))
         constraints = [cp.sum(X) == 1, X >= 0]
-        #constraints = [cp.sum(X) == 1]
         result = cp.Problem(objective, constraints).solve()
         X_new = X.value
         self.X = pd.Series(data=X_new, index=R.index)
@@ -150,8 +152,15 @@ class Portfolio:
         :param train_data: a dataframe as downloaded from yahoo finance, containing about 5 years of history,
         with all the training data. The following day (the first that does not appear in the index) is the test day
         :return: a numpy array of shape num_stocks with the portfolio for the test day
+                
         """
-
+        
+        if self.X is None:            
+            # In case the portfolio wasn't initialized correctly
+            # The fallback is to initialize the weights vector equally.
+            print("The model wasn't trained! Initialize the weights vector equally.")
+            self.train(train_data, method='train_equal')     
+            
         self.calc_PAMR(train_data)
 
         return self.X.to_numpy()
