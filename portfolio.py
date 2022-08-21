@@ -107,7 +107,7 @@ class Portfolio:
                 elif method == 'train_maxShp':
                     X = get_max_sharpe_portfolio(R, C, tau=tau)
                 else:
-                    raise "Not implemanted !!!"                    
+                    raise "Not implemented !!!"
                     
                 # The portfolio we calculated is missing the simbols that has no history data (we used `dropna`)
                 # so we restore them with zero weight
