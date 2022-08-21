@@ -3,25 +3,20 @@ import pandas as pd
 import cvxpy as cp
 from scipy.optimize import minimize
 
-def get_max_sharp_portfolio(train_data: pd.DataFrame, tau=0.0) -> pd.Series:
 
-    start_date = train_data.index[0]
-    end_date = train_data.index[-1]
-    all_weekdays = pd.date_range(start=start_date, end=end_date, freq='B')
-    close = train_data['Adj Close'].reindex(all_weekdays).fillna(method='ffill').dropna(axis=0, how="all").dropna(axis=1, how="any")
+def get_max_sharpe_portfolio(R, C, tau=0.0) -> pd.Series:
+    """
+    Calculate the maximum sharpe portfolio (tangent portfolio)
+    R: mean return vector
+    C: covariance matrix
+    tau: weight of the regularization term
+    """
 
-    # Relative returns
-    returns = close.pct_change(1)
-    Rf = 0.0
-    R = returns.mean() - Rf
-
-    # Covariance
     n = R.shape[0]
-    C = returns.cov()
 
     if tau > 0.0:
-        def calc_sharp(w): return (w.T @ R) / np.sqrt(w.T @ C @ w)
-        def target(w): return -1 * calc_sharp(w) + tau * np.linalg.norm(w, 1)
+        def calc_sharpe(w): return (w.T @ R) / np.sqrt(w.T @ C @ w)
+        def target(w): return -1 * calc_sharpe(w) + tau * np.linalg.norm(w, 1)
 
         # create constraint optimization
         cons = ({'type': 'eq', 'fun': (lambda w: w.sum()-1)})
@@ -33,27 +28,18 @@ def get_max_sharp_portfolio(train_data: pd.DataFrame, tau=0.0) -> pd.Series:
         e = np.ones(n)
         X = (C_inv @ R) / (e.T @ C_inv @ R)
     
-    X = pd.Series(data=X, index=R.index)
-
-    # The portfolio we calculated is missing the simbols that has no history data (we used `dropna`)
-    # so we restore them with zero weight
-    return pd.Series(data=X, index=train_data['Adj Close'].columns).fillna(0)
+    return pd.Series(data=X, index=R.index)
 
 
-def get_min_var_portfolio(train_data: pd.DataFrame, tau=0.0) -> pd.Series:
+def get_min_var_portfolio(R, C, tau=0.0) -> pd.Series:
+    """
+    Calculate the minimum variance portfolio
+    R: mean return vector
+    C: covariance matrix
+    tau: weight of the regularization term
+    """
 
-    start_date = train_data.index[0]
-    end_date = train_data.index[-1]
-    all_weekdays = pd.date_range(start=start_date, end=end_date, freq='B')
-    close = train_data['Adj Close'].reindex(all_weekdays).fillna(method='ffill').dropna(axis=0, how="all").dropna(axis=1, how="any")
-
-    # Relative returns
-    returns = close.pct_change(1)
-    R = returns.mean()
-
-    # Covariance
     n = R.shape[0]
-    C = returns.cov()
 
     if tau > 0.0:
         x = cp.Variable(n)
@@ -66,11 +52,8 @@ def get_min_var_portfolio(train_data: pd.DataFrame, tau=0.0) -> pd.Series:
         e = np.ones(n)
         X = (C_inv @ e) / (e.T @ C_inv @ e)
 
-    X = pd.Series(data=X, index=R.index)
+    return pd.Series(data=X, index=R.index)
 
-    # The portfolio we calculated is missing the simbols that has no history data (we used `dropna`)
-    # so we restore them with zero weight
-    return pd.Series(data=X, index=train_data['Adj Close'].columns).fillna(0)
 
 class Portfolio:
 
@@ -98,25 +81,47 @@ class Portfolio:
         
         :return (optional): weights vector.
         """
-
-        if history is not None and history < train_data.shape[0]:
-            train_data = train_data.iloc[-history:]
         
-        if method == 'train_equal':
-            train_data_close = train_data['Adj Close']
+        train_data_close = train_data['Adj Close']
+        
+        if method == 'train_equal':            
             X = np.ones(len(train_data_close.columns)) / len(train_data_close.columns)
             self.X = pd.Series(data=X, index=train_data_close.columns)
-        elif method == 'train_minVar':
-            self.X = get_min_var_portfolio(train_data, tau=tau)
-        elif method == 'train_maxShp':
-            self.X = get_max_sharp_portfolio(train_data, tau=tau)
-        else:
-            raise "Not implemanted !!!"
         
-        self.X.to_pickle('portfolio.pkl')
-        return self.X.to_numpy()
+        else:
+            if history is not None and history < train_data.shape[0]:
+                train_data = train_data.iloc[-history:]
+            
+                start_date = train_data.index[0]
+                end_date = train_data.index[-1]
+                all_weekdays = pd.date_range(start=start_date, end=end_date, freq='B')
+                close = train_data_close.reindex(all_weekdays).fillna(method='ffill').dropna(axis=0, how="all").dropna(axis=1, how="any")
+                
+                # Relative returns & Covariance
+                returns = close.pct_change(1)
+                R = returns.mean()
+                C = returns.cov()        
+
+                if method == 'train_minVar':
+                    X = get_min_var_portfolio(R, C, tau=tau)
+                elif method == 'train_maxShp':
+                    X = get_max_sharpe_portfolio(R, C, tau=tau)
+                else:
+                    raise "Not implemanted !!!"                    
+                    
+                # The portfolio we calculated is missing the simbols that has no history data (we used `dropna`)
+                # so we restore them with zero weight
+                self.X = pd.Series(data=X, index=train_data_close.columns).fillna(0)
+            
+            self.X.to_pickle('portfolio.pkl')
+            return self.X.to_numpy()
 
     def calc_PAMR(self, data: pd.DataFrame):
+        """
+        Implement the PAME algorithm according to the paper:
+        LI, Bin; ZHAO, Peilin; HOI, Steven C. H.; and Gopalkrishnan, Vivekanand. PAMR: Passive-Aggressive Mean Reversion Strategy for Portfolio Selection. (2012).
+        Machine Learning. 87, (2), 221-258. Research Collection School Of Information Systems
+        """
 
         close = data['Adj Close'].fillna(method='ffill')
 
@@ -151,8 +156,7 @@ class Portfolio:
         The function used to get the model's portfolio for the next day
         :param train_data: a dataframe as downloaded from yahoo finance, containing about 5 years of history,
         with all the training data. The following day (the first that does not appear in the index) is the test day
-        :return: a numpy array of shape num_stocks with the portfolio for the test day
-                
+        :return: a numpy array of shape num_stocks with the portfolio for the test day                
         """
         
         if self.X is None:            
@@ -162,5 +166,4 @@ class Portfolio:
             self.train(train_data, method='train_equal')     
             
         self.calc_PAMR(train_data)
-
         return self.X.to_numpy()

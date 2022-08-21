@@ -53,7 +53,7 @@ def get_referancePortfolios(data: pd.DataFrame, marketCap: pd.DataFrame):
     X_min_var = (C_inv @ e) / (e.T @ C_inv @ e)
     X_min_var = pd.Series(data=X_min_var, index=all_data_columns).fillna(0)
 
-    # Find the maximum sharp ratio portfolio
+    # Find the maximum sharpe ratio portfolio
     X_max_shp = (C_inv @ R) / (e.T @ C_inv @ R)
     X_max_shp = pd.Series(data=X_max_shp, index=all_data_columns).fillna(0)
 
@@ -170,7 +170,7 @@ def main() -> pd.DataFrame:
 
     params = [('train_minVar', None, 0), ('train_minVar', 300, 0), ('train_minVar', 300, 0.1),
               ('train_maxShp', None, 0), ('train_maxShp', 300, 0) , ('train_maxShp', 300, 0.1),
-              ('train_equal', None)]
+              ('train_equal', None, 0)]
 
     results = dict.fromkeys([*params, 'minVar', 'market', 'maxShp'])
 
