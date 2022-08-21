@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import cvxpy as cp
 from scipy.optimize import minimize
 
 def get_max_sharp_portfolio(train_data: pd.DataFrame, tau=0.0) -> pd.Series:
@@ -17,8 +18,6 @@ def get_max_sharp_portfolio(train_data: pd.DataFrame, tau=0.0) -> pd.Series:
     # Covariance
     n = R.shape[0]
     C = returns.cov()
-    C_inv = pd.DataFrame(np.linalg.inv(C.values), columns=C.columns, index=C.index)
-    e = np.ones(n)
 
     if tau > 0.0:
         def calc_sharp(w): return (w.T @ R) / np.sqrt(w.T @ C @ w)
@@ -30,6 +29,8 @@ def get_max_sharp_portfolio(train_data: pd.DataFrame, tau=0.0) -> pd.Series:
         init_guess = [1/n] * n
         X = minimize(target, init_guess, method='SLSQP', bounds=bounds, constraints=cons).x
     else:
+        C_inv = pd.DataFrame(np.linalg.inv(C.values), columns=C.columns, index=C.index)
+        e = np.ones(n)
         X = (C_inv @ R) / (e.T @ C_inv @ R)
     
     X = pd.Series(data=X, index=R.index)
@@ -53,19 +54,16 @@ def get_min_var_portfolio(train_data: pd.DataFrame, tau=0.0) -> pd.Series:
     # Covariance
     n = R.shape[0]
     C = returns.cov()
-    C_inv = pd.DataFrame(np.linalg.inv(C.values), columns=C.columns, index=C.index)
-    e = np.ones(n)
 
     if tau > 0.0:
-        def calc_cov(w): return w.T @ C @ w
-        def target(w): return calc_cov(w) + tau * np.linalg.norm(w, 1)
-
-        # create constraint optimization
-        cons = ({'type': 'eq', 'fun': (lambda w: w.sum()-1)})
-        bounds = None
-        init_guess = [1 / n] * n
-        X = minimize(target, init_guess, method='SLSQP', bounds=bounds, constraints=cons).x
+        x = cp.Variable(n)
+        objective = cp.Minimize((1 / 2) * cp.quad_form(x, C) + tau * cp.norm(x, 1))
+        constraints = [cp.sum(x) == 1]
+        result = cp.Problem(objective, constraints).solve()
+        X = x.value
     else:
+        C_inv = pd.DataFrame(np.linalg.inv(C.values), columns=C.columns, index=C.index)
+        e = np.ones(n)
         X = (C_inv @ e) / (e.T @ C_inv @ e)
 
     X = pd.Series(data=X, index=R.index)
@@ -138,11 +136,12 @@ class Portfolio:
 
         # Normalize portfolio (7)
         # create constraint LSE
-        def lse(x): return np.sum((x - X_new)**2)
-        cons = ({'type': 'eq', 'fun': (lambda x: x.sum()-1)})
-        bounds = [(0, 1)] * n
-
-        X_new = minimize(lse, x0=self.X, bounds=bounds, constraints=cons).x
+        X = cp.Variable(n)
+        objective = cp.Minimize(cp.sum_squares(X - X_new))
+        constraints = [cp.sum(X) == 1, X >= 0]
+        #constraints = [cp.sum(X) == 1]
+        result = cp.Problem(objective, constraints).solve()
+        X_new = X.value
         self.X = pd.Series(data=X_new, index=R.index)
 
     def get_portfolio(self, train_data: pd.DataFrame) -> np.ndarray:
