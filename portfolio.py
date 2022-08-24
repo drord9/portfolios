@@ -4,7 +4,7 @@ import cvxpy as cp
 from scipy.optimize import minimize
 
 
-def get_max_sharpe_portfolio(R, C, tau=0.0) -> pd.Series:
+def get_max_sharpe_portfolio(R: pd.Series, C: pd.DataFrame, tau=0.0) -> pd.Series:
     """
     Calculate the maximum sharpe portfolio (tangent portfolio)
     R: mean return vector
@@ -24,14 +24,14 @@ def get_max_sharpe_portfolio(R, C, tau=0.0) -> pd.Series:
         init_guess = [1/n] * n
         X = minimize(target, init_guess, method='SLSQP', bounds=bounds, constraints=cons).x
     else:
-        C_inv = pd.DataFrame(np.linalg.inv(C.values), columns=C.columns, index=C.index)
+        C_inv = np.linalg.inv(C.values)
         e = np.ones(n)
         X = (C_inv @ R) / (e.T @ C_inv @ R)
     
     return pd.Series(data=X, index=R.index)
 
 
-def get_min_var_portfolio(R, C, tau=0.0) -> pd.Series:
+def get_min_var_portfolio(R: pd.Series, C: pd.DataFrame, tau=0.0) -> pd.Series:
     """
     Calculate the minimum variance portfolio
     R: mean return vector
@@ -48,7 +48,7 @@ def get_min_var_portfolio(R, C, tau=0.0) -> pd.Series:
         result = cp.Problem(objective, constraints).solve()
         X = x.value
     else:
-        C_inv = pd.DataFrame(np.linalg.inv(C.values), columns=C.columns, index=C.index)
+        C_inv = np.linalg.inv(C.values)
         e = np.ones(n)
         X = (C_inv @ e) / (e.T @ C_inv @ e)
 
@@ -92,26 +92,26 @@ class Portfolio:
             if history is not None and history < train_data.shape[0]:
                 train_data = train_data.iloc[-history:]
             
-                start_date = train_data.index[0]
-                end_date = train_data.index[-1]
-                all_weekdays = pd.date_range(start=start_date, end=end_date, freq='B')
-                close = train_data_close.reindex(all_weekdays).fillna(method='ffill').dropna(axis=0, how="all").dropna(axis=1, how="any")
-                
-                # Relative returns & Covariance
-                returns = close.pct_change(1)
-                R = returns.mean()
-                C = returns.cov()        
+            start_date = train_data.index[0]
+            end_date = train_data.index[-1]
+            all_weekdays = pd.date_range(start=start_date, end=end_date, freq='B')
+            close = train_data_close.reindex(all_weekdays).fillna(method='ffill').dropna(axis=0, how="all").dropna(axis=1, how="any")
 
-                if method == 'train_minVar':
-                    X = get_min_var_portfolio(R, C, tau=tau)
-                elif method == 'train_maxShp':
-                    X = get_max_sharpe_portfolio(R, C, tau=tau)
-                else:
-                    raise "Not implemented !!!"
-                    
-                # The portfolio we calculated is missing the simbols that has no history data (we used `dropna`)
-                # so we restore them with zero weight
-                self.X = pd.Series(data=X, index=train_data_close.columns).fillna(0)
+            # Relative returns & Covariance
+            returns = close.pct_change(1)
+            R = returns.mean()
+            C = returns.cov()
+
+            if method == 'train_minVar':
+                X = get_min_var_portfolio(R, C, tau=tau)
+            elif method == 'train_maxShp':
+                X = get_max_sharpe_portfolio(R, C, tau=tau)
+            else:
+                raise "Not implemented !!!"
+
+            # The portfolio we calculated is missing the simbols that has no history data (we used `dropna`)
+            # so we restore them with zero weight
+            self.X = pd.Series(data=X, index=train_data_close.columns).fillna(0)
             
             self.X.to_pickle('portfolio.pkl')
             return self.X.to_numpy()
