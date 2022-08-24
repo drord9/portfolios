@@ -3,6 +3,13 @@ import pandas as pd
 import cvxpy as cp
 from scipy.optimize import minimize
 
+"""
+Machine Learning in Portfolio Selection 096293
+Final Project - Spring 2022
+Dror Carmon 036861292
+Shani Amir 302629381
+"""
+
 
 def get_max_sharpe_portfolio(R: pd.Series, C: pd.DataFrame, tau=0.0) -> pd.Series:
     """
@@ -118,8 +125,9 @@ class Portfolio:
 
     def calc_PAMR(self, data: pd.DataFrame):
         """
-        Implement the PAME algorithm according to the paper:
-        LI, Bin; ZHAO, Peilin; HOI, Steven C. H.; and Gopalkrishnan, Vivekanand. PAMR: Passive-Aggressive Mean Reversion Strategy for Portfolio Selection. (2012).
+        Implement the PAMR algorithm according to the paper:
+        LI, Bin; ZHAO, Peilin; HOI, Steven C. H.; and Gopalkrishnan, Vivekanand.
+        PAMR: Passive-Aggressive Mean Reversion Strategy for Portfolio Selection. (2012).
         Machine Learning. 87, (2), 221-258. Research Collection School Of Information Systems
         """
 
