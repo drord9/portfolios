@@ -113,8 +113,8 @@ class Portfolio:
             # so we restore them with zero weight
             self.X = pd.Series(data=X, index=train_data_close.columns).fillna(0)
             
-            self.X.to_pickle('portfolio.pkl')
-            return self.X.to_numpy()
+        self.X.to_pickle('portfolio.pkl')
+        return self.X.to_numpy()
 
     def calc_PAMR(self, data: pd.DataFrame):
         """
